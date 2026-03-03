@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Claude Code status line — two-line adaptive layout with colors + emoji
-# Line 1: Identity & Time | Line 2: Workspace & Context
+# Claude Code status line — three-line adaptive layout with colors + emoji
+# Line 1: Identity & Time | Line 2: Workspace | Line 3: Metrics
 #
 # Every color code includes ;40 (black bg) so background is NEVER dropped.
 
@@ -39,6 +39,13 @@ process.stdin.on('end', () => {
     console.log('vim_mode=\"' + esc(d.vim?.mode || '') + '\"');
     console.log('agent_name=\"' + esc(d.agent?.name || '') + '\"');
     console.log('output_style=\"' + esc(d.output_style?.name || '') + '\"');
+    console.log('cc_version=\"' + esc(d.version || '') + '\"');
+    console.log('cost_usd=\"' + (d.cost?.total_cost_usd || 0) + '\"');
+    console.log('duration_ms=\"' + (d.cost?.total_duration_ms || 0) + '\"');
+    console.log('lines_added=\"' + (d.cost?.total_lines_added || 0) + '\"');
+    console.log('lines_removed=\"' + (d.cost?.total_lines_removed || 0) + '\"');
+    console.log('ctx_size=\"' + (d.context_window?.context_window_size || 0) + '\"');
+    console.log('plan_tier=\"' + esc(d.plan?.tier || d.plan?.name || d.account?.plan || '') + '\"');
   } catch(e) {
     console.log('model=\"\"');
     console.log('cwd=\"\"');
@@ -49,6 +56,13 @@ process.stdin.on('end', () => {
     console.log('vim_mode=\"\"');
     console.log('agent_name=\"\"');
     console.log('output_style=\"\"');
+    console.log('cc_version=\"\"');
+    console.log('cost_usd=\"0\"');
+    console.log('duration_ms=\"0\"');
+    console.log('lines_added=\"0\"');
+    console.log('lines_removed=\"0\"');
+    console.log('ctx_size=\"0\"');
+    console.log('plan_tier=\"\"');
   }
 });
 " 2>/dev/null)"
@@ -80,9 +94,15 @@ build_bar_inline() {
 
 # ─── LINE 1: Identity & Time ───
 
-datetime_str="🕐 ${CYAN}$(date '+%a %b %-d %H:%M')${R}"
+datetime_str="🕐 ${DIM}Time:${R} ${CYAN}$(date '+%a %b %-d %H:%M')${R}"
 
-plan_str="💎 ${MAGENTA}${CLAUDE_PLAN:-Max}${R}"
+plan_display="${plan_tier:-${CLAUDE_PLAN:-Team}}"
+plan_str="💎 ${DIM}Plan:${R} ${MAGENTA}${plan_display}${R}"
+
+version_str=""
+if [ -n "$cc_version" ]; then
+  version_str=" ${SEP} ${DIM}v${cc_version}${R}"
+fi
 
 # Reset countdown
 utc_secs=$(( $(date -u +%s) % 86400 ))
@@ -95,9 +115,9 @@ filled_t=$(( (hrs * bar_w + 23) / 24 ))
 if [ "$hrs" -ge 8 ]; then rc="$GREEN"; elif [ "$hrs" -ge 3 ]; then rc="$YELLOW"; else rc="$RED"; fi
 build_bar_inline "$filled_t" "$bar_w" "$rc"
 printf -v mins_pad "%02d" "$mins"
-reset_str="⏳ ${bar_result} ${rc}${hrs}h${mins_pad}m${R}"
+reset_str="⏳ ${DIM}Reset:${R} ${bar_result} ${rc}${hrs}h${mins_pad}m${R}"
 
-model_str="🤖 ${BLUE}${model/Claude /}${R}"
+model_str="🤖 ${DIM}Model:${R} ${BLUE}${model/Claude /}${R}"
 
 # Vim mode — default to NORMAL when not set
 vim_mode="${vim_mode:-NORMAL}"
@@ -109,13 +129,13 @@ fi
 
 agent_str=""
 if [ -n "$agent_name" ]; then
-  agent_str=" ${SEP} 🔧 ${YELLOW}${agent_name}${R}"
+  agent_str=" ${SEP} 🔧 ${DIM}Agent:${R} ${YELLOW}${agent_name}${R}"
 fi
 
 style_str=""
 style_lower=$(echo "$output_style" | tr '[:upper:]' '[:lower:]')
 if [ -n "$output_style" ] && [ "$style_lower" != "normal" ] && [ "$style_lower" != "default" ]; then
-  style_str=" ${SEP} ✨ ${MAGENTA}${output_style}${R}"
+  style_str=" ${SEP} ✨ ${DIM}Style:${R} ${MAGENTA}${output_style}${R}"
 fi
 
 # ─── LINE 2: Workspace & Context ───
@@ -130,13 +150,13 @@ short_cwd="${norm_cwd/#$home_dir/\~}"
 if [ ${#short_cwd} -gt 50 ]; then
   short_cwd="~/...$(echo "$short_cwd" | rev | cut -d'/' -f1-2 | rev)"
 fi
-cwd_str="📂 ${CYAN}${short_cwd}${R}"
+cwd_str="📂 ${DIM}Dir:${R} ${CYAN}${short_cwd}${R}"
 
 git_str=""
 if [ -n "$cwd" ]; then
   git_branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null)
   if [ -n "$git_branch" ]; then
-    git_str=" ${SEP} 🌿 ${GREEN}${git_branch}${R}"
+    git_str=" ${SEP} 🌿 ${DIM}Branch:${R} ${GREEN}${git_branch}${R}"
     porcelain=$(git -C "$cwd" --no-optional-locks status --porcelain 2>/dev/null)
     if [ -n "$porcelain" ]; then
       mod_count=$(echo "$porcelain" | grep -c '^ \?M')
@@ -163,23 +183,50 @@ if [ -n "$used_pct" ]; then
   pct_int=${used_pct%.*}
   if [ "$pct_int" -le 50 ] 2>/dev/null; then cc="$GREEN"; elif [ "$pct_int" -le 80 ] 2>/dev/null; then cc="$YELLOW"; else cc="$RED"; fi
   build_bar_inline "$filled" 10 "$cc"
-  ctx_str="📊 ${bar_result} ${cc}${used_pct}%${R}"
+  ctx_str="📊 ${DIM}Context:${R} ${bar_result} ${cc}${used_pct}%${R}"
 else
-  ctx_str="📊 ${DIM}---------- --${R}"
+  ctx_str="📊 ${DIM}Context: ---------- --${R}"
 fi
 
 tokens_str=""
 if [ "$total_input" -gt 0 ] 2>/dev/null || [ "$total_output" -gt 0 ] 2>/dev/null; then
   in_fmt=$(format_tokens "$total_input")
   out_fmt=$(format_tokens "$total_output")
-  tokens_str=" ${SEP} ${DIM}in:${R} ${WHITE}${in_fmt}${R} ${DIM}out:${R} ${WHITE}${out_fmt}${R}"
+  tokens_str=" ${SEP} ${DIM}Tokens in:${R} ${WHITE}${in_fmt}${R} ${DIM}out:${R} ${WHITE}${out_fmt}${R}"
 fi
 
 session_str=""
 if [ -n "$session_name" ]; then
-  session_str=" ${SEP} 💬 ${MAGENTA}\"${session_name}\"${R}"
+  session_str=" ${SEP} 💬 ${DIM}Session:${R} ${MAGENTA}\"${session_name}\"${R}"
+fi
+
+cost_str=""
+if [ "$cost_usd" != "0" ] && [ -n "$cost_usd" ]; then
+  cost_rounded=$(printf '%.2f' "$cost_usd" 2>/dev/null || echo "$cost_usd")
+  cost_str=" ${SEP} 💰 ${DIM}Cost:${R} ${YELLOW}\$${cost_rounded}${R}"
+fi
+
+duration_str=""
+if [ "$duration_ms" -gt 0 ] 2>/dev/null; then
+  total_secs=$(( duration_ms / 1000 ))
+  d_hrs=$(( total_secs / 3600 ))
+  d_mins=$(( (total_secs % 3600) / 60 ))
+  d_secs=$(( total_secs % 60 ))
+  if [ "$d_hrs" -gt 0 ]; then
+    duration_str=" ${SEP} ⏱ ${DIM}Elapsed:${R} ${DIM}${d_hrs}h${d_mins}m${d_secs}s${R}"
+  elif [ "$d_mins" -gt 0 ]; then
+    duration_str=" ${SEP} ⏱ ${DIM}Elapsed:${R} ${DIM}${d_mins}m${d_secs}s${R}"
+  else
+    duration_str=" ${SEP} ⏱ ${DIM}Elapsed:${R} ${DIM}${d_secs}s${R}"
+  fi
+fi
+
+lines_str=""
+if [ "$lines_added" -gt 0 ] 2>/dev/null || [ "$lines_removed" -gt 0 ] 2>/dev/null; then
+  lines_str=" ${SEP} ${DIM}Lines:${R} ${GREEN}+${lines_added}${R}/${RED}-${lines_removed}${R}"
 fi
 
 # ─── OUTPUT ───
-echo -e "${R}${datetime_str} ${SEP} ${plan_str} ${SEP} ${reset_str} ${SEP} ${model_str}${vim_str}${agent_str}${style_str}${END}"
-echo -e "${R}${cwd_str}${git_str} ${SEP} ${ctx_str}${tokens_str}${session_str}${END}"
+echo -e "${R}${datetime_str} ${SEP} ${plan_str} ${SEP} ${reset_str} ${SEP} ${model_str}${version_str}${END}"
+echo -e "${R}${cwd_str}${git_str}${vim_str}${agent_str}${style_str}${session_str}${END}"
+echo -e "${R}${ctx_str}${tokens_str}${cost_str}${duration_str}${lines_str}${END}"

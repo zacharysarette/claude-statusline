@@ -2,6 +2,21 @@
 
 Future improvements and expansion ideas for the Claude Code status line.
 
+## Completed
+
+### Cost Tracking ✅
+Session cost is now displayed on line 3 via the `cost.total_cost_usd` field from the API:
+```
+💰 Cost: $0.42
+```
+
+### Stopwatch / Session Duration ✅
+Session elapsed time is now displayed on line 3 via the `cost.total_duration_ms` field from the API:
+```
+⏱ Elapsed: 1h23m
+```
+No temp files needed — the API provides the duration directly.
+
 ## Planned Improvements
 
 ### Background Color Fix
@@ -30,24 +45,6 @@ SHOW_AGENT=true
 SHOW_STYLE=true
 DEFAULT_VIM_MODE="NORMAL"  # or "" to hide when vim not active
 ```
-
-### Cost Tracking
-Show estimated session cost based on token counts and model pricing:
-```
-💰 $0.42
-```
-- Requires a pricing lookup (could be hardcoded or fetched)
-- Model pricing: input vs output rates differ
-- Would need to be updated when Anthropic changes pricing
-
-### Stopwatch / Session Duration
-Show how long the current session has been active:
-```
-⏱️ 1h23m
-```
-- Write session start time to a temp file on first run
-- Calculate elapsed on each render
-- Reset when session changes (detect via session_name or PID)
 
 ## Feature Ideas
 
@@ -108,20 +105,27 @@ Tiny weather indicator fetched periodically:
 3. A single `node` call parses JSON and outputs `key="value"` pairs
 4. `eval` brings those into bash variables
 5. Each section builds a string with ANSI color codes
-6. Two `echo -e` calls output line 1 and line 2
+6. Three `echo -e` calls output line 1, line 2, and line 3
 7. Claude Code renders each `echo` as a separate status row
 
 ### JSON Fields Available
 ```
-d.model.display_name        "Claude Opus 4.6"
-d.cwd                       "C:/Users/..." or "/home/..."
-d.context_window.used_percentage   23
+d.model.display_name              "Claude Opus 4.6"
+d.cwd                             "C:/Users/..." or "/home/..."
+d.context_window.used_percentage  23
 d.context_window.total_input_tokens    120000
 d.context_window.total_output_tokens   25000
-d.session_name              "my session" or ""
-d.vim.mode                  "NORMAL", "INSERT", or ""
-d.agent.name                "agent-name" or undefined
-d.output_style.name         "default", "Concise", etc.
+d.context_window.context_window_size   200000
+d.session_name                    "my session" or ""
+d.vim.mode                        "NORMAL", "INSERT", or ""
+d.agent.name                      "agent-name" or undefined
+d.output_style.name               "default", "Concise", etc.
+d.version                         "1.0.26"
+d.cost.total_cost_usd             0.42
+d.cost.total_duration_ms          74000
+d.cost.total_lines_added          85
+d.cost.total_lines_removed        12
+d.plan.tier                       "Team", "Max", "Pro", etc.
 ```
 
 ### Key Gotchas

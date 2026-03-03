@@ -36,7 +36,10 @@ Edit `~/.claude/settings.json` to add the statusline command. If the file doesn'
 
 ```json
 {
-  "statusline_command": "bash ~/.claude/statusline-command.sh"
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
+  }
 }
 ```
 
@@ -56,13 +59,16 @@ It should become:
 {
   "theme": "dark",
   "permissions": {},
-  "statusline_command": "bash ~/.claude/statusline-command.sh"
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
+  }
 }
 ```
 
 ## Step 3: Set Plan Tier (Optional)
 
-The status line defaults to showing "Max" as the plan tier. To change this, add to the user's shell profile (`~/.bashrc`, `~/.zshrc`, or equivalent):
+The status line reads the plan tier from the API data first, falling back to the `CLAUDE_PLAN` environment variable, and defaulting to "Team" if neither is set. To override, add to the user's shell profile (`~/.bashrc`, `~/.zshrc`, or equivalent):
 
 ```bash
 export CLAUDE_PLAN="Pro"
@@ -72,14 +78,15 @@ Valid values: `Max`, `Pro`, `Team`, or any custom string.
 
 ## Step 4: Verify
 
-Tell the user to open a new Claude Code session. The two-line status bar should appear at the bottom of the terminal with:
-- Line 1: clock, plan, reset countdown, model, vim mode
-- Line 2: working directory, git branch, context usage, tokens
+Tell the user to open a new Claude Code session. The three-line status bar should appear at the bottom of the terminal with:
+- Line 1: clock, plan, reset countdown, model, version, vim mode
+- Line 2: working directory, git branch, session name
+- Line 3: context usage, tokens, cost, elapsed time, lines changed
 
 ## Troubleshooting
 
 ### Status line doesn't appear
-- Check that `~/.claude/settings.json` has the `statusline_command` key
+- Check that `~/.claude/settings.json` has the `statusLine` key (nested object with `type` and `command`)
 - Check that the script file exists at `~/.claude/statusline-command.sh`
 - Try running manually: `echo '{}' | bash ~/.claude/statusline-command.sh`
 
