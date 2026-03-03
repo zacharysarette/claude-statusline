@@ -25,7 +25,7 @@ Each open PR gets its own status line row with CI and review statuses:
 ```
 - One line per PR — first row has `🔀 PRs:` header, subsequent rows show `🔀`
 - Shows all open PRs (not just current branch), highlights current branch's PR in cyan
-- Background-refresh cache (`/tmp/claude-statusline-prs.cache`) with 5-minute TTL — never blocks rendering
+- Background-refresh cache (`/tmp/claude-statusline-prs-<owner>-<repo>.cache`) with 5-minute TTL — never blocks rendering
 - Requires `gh` CLI (gracefully hidden if not installed)
 - Configurable via `CLAUDE_PR_CACHE_TTL`, `CLAUDE_PR_LIMIT`, `CLAUDE_PR_DISABLE`
 
