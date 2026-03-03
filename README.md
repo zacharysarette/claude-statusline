@@ -94,7 +94,7 @@ The script reads the plan tier from the API data first, falling back to `$CLAUDE
 | `CLAUDE_PR_LIMIT` | `5` | Maximum number of PRs to display |
 | `CLAUDE_PR_DISABLE` | unset | Set to `1` to hide the PR line entirely |
 
-PR data is fetched in the background and cached to `/tmp/claude-statusline-prs.cache`. The first render after a cold start won't show the line — the background fetch populates the cache for the next render.
+PR data is fetched in the background and cached to `/tmp/claude-statusline-prs-<owner>-<repo>.cache`. The first render after a cold start won't show the line — the background fetch populates the cache for the next render.
 
 ### Disable vim mode display
 In `statusline-command.sh`, change:

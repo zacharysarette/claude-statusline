@@ -176,12 +176,25 @@ if [ -n "$cwd" ]; then
   fi
 fi
 
+# ─── Derive GitHub owner/repo for PR queries ───
+gh_repo=""
+if [ -n "$cwd" ]; then
+  _remote_url=$(git -C "$cwd" --no-optional-locks remote get-url origin 2>/dev/null)
+  if [ -n "$_remote_url" ]; then
+    _remote_url="${_remote_url%.git}"
+    if [[ "$_remote_url" =~ github\.com[:/]([^/]+/[^/]+)$ ]]; then
+      gh_repo="${BASH_REMATCH[1]}"
+    fi
+  fi
+fi
+
 # ─── LINE 4 data: Open PRs ───
 
 pr_lines=()
-if [ "${CLAUDE_PR_DISABLE:-}" != "1" ] && command -v gh &>/dev/null; then
-  pr_cache="/tmp/claude-statusline-prs.cache"
-  pr_stamp="/tmp/claude-statusline-prs.stamp"
+if [ "${CLAUDE_PR_DISABLE:-}" != "1" ] && [ -n "$gh_repo" ] && command -v gh &>/dev/null; then
+  _repo_slug="${gh_repo//\//-}"
+  pr_cache="/tmp/claude-statusline-prs-${_repo_slug}.cache"
+  pr_stamp="/tmp/claude-statusline-prs-${_repo_slug}.stamp"
   pr_ttl="${CLAUDE_PR_CACHE_TTL:-300}"
   pr_limit="${CLAUDE_PR_LIMIT:-5}"
 
@@ -193,7 +206,7 @@ if [ "${CLAUDE_PR_DISABLE:-}" != "1" ] && command -v gh &>/dev/null; then
   if [ "$age" -ge "$pr_ttl" ]; then
     (
       tmp_cache="${pr_cache}.tmp"
-      gh pr list --author "@me" \
+      gh pr list --author "@me" -R "$gh_repo" \
         --json number,title,headRefName,statusCheckRollup,reviewDecision,isDraft \
         --limit "$pr_limit" 2>/dev/null | node -e "
 const chunks = [];
