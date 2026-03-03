@@ -198,17 +198,12 @@ if [ "${CLAUDE_PR_DISABLE:-}" != "1" ] && [ -n "$gh_repo" ] && command -v gh &>/
   pr_ttl="${CLAUDE_PR_CACHE_TTL:-300}"
   pr_limit="${CLAUDE_PR_LIMIT:-5}"
 
-  # Check if cache is stale and kick off background refresh
-  now=$(date +%s)
-  last=0
-  [ -f "$pr_stamp" ] && last=$(cat "$pr_stamp" 2>/dev/null)
-  age=$(( now - last ))
-  if [ "$age" -ge "$pr_ttl" ]; then
-    (
-      tmp_cache="${pr_cache}.tmp"
-      gh pr list --author "@me" -R "$gh_repo" \
-        --json number,title,headRefName,statusCheckRollup,reviewDecision,isDraft \
-        --limit "$pr_limit" 2>/dev/null | node -e "
+  # Fetch helper — writes PR data to cache
+  _pr_refresh() {
+    local tmp_cache="${pr_cache}.tmp"
+    gh pr list --author "@me" -R "$gh_repo" \
+      --json number,title,headRefName,statusCheckRollup,reviewDecision,isDraft \
+      --limit "$pr_limit" 2>/dev/null | node -e "
 const chunks = [];
 process.stdin.on('data', c => chunks.push(c));
 process.stdin.on('end', () => {
@@ -233,9 +228,21 @@ process.stdin.on('end', () => {
     }
   } catch(e) {}
 });" > "$tmp_cache" 2>/dev/null
-      mv "$tmp_cache" "$pr_cache" 2>/dev/null
-      date +%s > "$pr_stamp" 2>/dev/null
-    ) &
+    mv "$tmp_cache" "$pr_cache" 2>/dev/null
+    date +%s > "$pr_stamp" 2>/dev/null
+  }
+
+  # Check if cache is stale
+  now=$(date +%s)
+  last=0
+  [ -f "$pr_stamp" ] && last=$(cat "$pr_stamp" 2>/dev/null)
+  age=$(( now - last ))
+  if [ "$age" -ge "$pr_ttl" ]; then
+    if [ -f "$pr_cache" ]; then
+      _pr_refresh &   # Stale — background refresh
+    else
+      _pr_refresh      # Cold start — block so first render shows PRs
+    fi
   fi
 
   # Read existing cache
