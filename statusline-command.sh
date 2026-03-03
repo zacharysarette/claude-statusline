@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Claude Code status line — three-line adaptive layout with colors + emoji
-# Line 1: Identity & Time | Line 2: Workspace | Line 3: Metrics
+# Claude Code status line — three-to-four-line adaptive layout with colors + emoji
+# Line 1: Identity & Time | Line 2: Workspace | Line 3: Metrics | Line 4: Open PRs (optional)
 #
 # Every color code includes ;40 (black bg) so background is NEVER dropped.
 
@@ -176,6 +176,99 @@ if [ -n "$cwd" ]; then
   fi
 fi
 
+# ─── LINE 4 data: Open PRs ───
+
+pr_lines=()
+if [ "${CLAUDE_PR_DISABLE:-}" != "1" ] && command -v gh &>/dev/null; then
+  pr_cache="/tmp/claude-statusline-prs.cache"
+  pr_stamp="/tmp/claude-statusline-prs.stamp"
+  pr_ttl="${CLAUDE_PR_CACHE_TTL:-300}"
+  pr_limit="${CLAUDE_PR_LIMIT:-5}"
+
+  # Check if cache is stale and kick off background refresh
+  now=$(date +%s)
+  last=0
+  [ -f "$pr_stamp" ] && last=$(cat "$pr_stamp" 2>/dev/null)
+  age=$(( now - last ))
+  if [ "$age" -ge "$pr_ttl" ]; then
+    (
+      tmp_cache="${pr_cache}.tmp"
+      gh pr list --author "@me" \
+        --json number,title,headRefName,statusCheckRollup,reviewDecision,isDraft \
+        --limit "$pr_limit" 2>/dev/null | node -e "
+const chunks = [];
+process.stdin.on('data', c => chunks.push(c));
+process.stdin.on('end', () => {
+  try {
+    const prs = JSON.parse(chunks.join(''));
+    for (const pr of prs) {
+      const num = pr.number;
+      const title = (pr.title || '').substring(0, 30);
+      const branch = pr.headRefName || '';
+      const draft = pr.isDraft ? '1' : '0';
+      let ci = '';
+      const checks = pr.statusCheckRollup || [];
+      if (checks.length > 0) {
+        const failed = checks.some(c => c.conclusion === 'FAILURE' || c.conclusion === 'TIMED_OUT' || c.conclusion === 'ERROR');
+        const pending = checks.some(c => c.status === 'IN_PROGRESS' || c.status === 'QUEUED' || c.status === 'PENDING' || !c.conclusion);
+        if (failed) ci = 'fail';
+        else if (pending) ci = 'pending';
+        else ci = 'pass';
+      }
+      const review = pr.reviewDecision || '';
+      console.log([num, title, ci, review, draft, branch].join('|'));
+    }
+  } catch(e) {}
+});" > "$tmp_cache" 2>/dev/null
+      mv "$tmp_cache" "$pr_cache" 2>/dev/null
+      date +%s > "$pr_stamp" 2>/dev/null
+    ) &
+  fi
+
+  # Read existing cache
+  if [ -f "$pr_cache" ] && [ -s "$pr_cache" ]; then
+    pr_parts=()
+    while IFS='|' read -r pr_num pr_title pr_ci pr_review pr_draft pr_branch; do
+      [ -z "$pr_num" ] && continue
+      # PR number — highlight if branch matches current git branch
+      if [ -n "$git_branch" ] && [ "$pr_branch" = "$git_branch" ]; then
+        part="${BCYAN}#${pr_num}${R}"
+      else
+        part="${WHITE}#${pr_num}${R}"
+      fi
+      # Draft prefix
+      if [ "$pr_draft" = "1" ]; then
+        part="${part} ${DIM}draft:${R}"
+      fi
+      # Title
+      part="${part} ${DIM}${pr_title}${R}"
+      # CI status
+      case "$pr_ci" in
+        pass)    part="${part} ✅ ${GREEN}CI passed${R}" ;;
+        fail)    part="${part} ❌ ${RED}CI failed${R}" ;;
+        pending) part="${part} ⏳ ${YELLOW}CI running${R}" ;;
+      esac
+      # Review status
+      case "$pr_review" in
+        APPROVED)          part="${part} 👍 ${GREEN}Approved${R}" ;;
+        CHANGES_REQUESTED) part="${part} 🔄 ${RED}Changes requested${R}" ;;
+        REVIEW_REQUIRED)   part="${part} 👀 ${YELLOW}Review needed${R}" ;;
+      esac
+      pr_parts+=("$part")
+    done < "$pr_cache"
+    if [ ${#pr_parts[@]} -gt 0 ]; then
+      pr_lines=()
+      for i in "${!pr_parts[@]}"; do
+        if [ "$i" -eq 0 ]; then
+          pr_lines+=("🔀 ${DIM}PRs:${R} ${pr_parts[$i]}")
+        else
+          pr_lines+=("🔀 ${pr_parts[$i]}")
+        fi
+      done
+    fi
+  fi
+fi
+
 if [ -n "$used_pct" ]; then
   filled=$(echo "$used_pct" | awk '{printf "%d", ($1 / 10) + 0.5}')
   empty=$((10 - filled))
@@ -230,3 +323,10 @@ fi
 echo -e "${R}${datetime_str} ${SEP} ${plan_str} ${SEP} ${reset_str} ${SEP} ${model_str}${version_str}${END}"
 echo -e "${R}${cwd_str}${git_str}${vim_str}${agent_str}${style_str}${session_str}${END}"
 echo -e "${R}${ctx_str}${tokens_str}${cost_str}${duration_str}${lines_str}${END}"
+# ─── LINE 4+ (conditional): Open PRs — one line per PR ───
+if [ ${#pr_lines[@]} -gt 0 ] 2>/dev/null; then
+  for pr_line in "${pr_lines[@]}"; do
+    echo -e "${R}${pr_line}${END}"
+  done
+fi
+true

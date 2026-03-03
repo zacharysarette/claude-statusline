@@ -9,6 +9,7 @@ Before starting, verify these are available:
 node --version    # Need Node.js for JSON parsing
 git --version     # Need git for branch/status info
 bash --version    # Need bash to run the script
+gh --version      # (optional) Need gh CLI for PR status on Line 4
 ```
 
 ## Step 1: Copy the Script
@@ -78,10 +79,11 @@ Valid values: `Max`, `Pro`, `Team`, or any custom string.
 
 ## Step 4: Verify
 
-Tell the user to open a new Claude Code session. The three-line status bar should appear at the bottom of the terminal with:
+Tell the user to open a new Claude Code session. The status bar should appear at the bottom of the terminal with:
 - Line 1: clock, plan, reset countdown, model, version, vim mode
 - Line 2: working directory, git branch, session name
 - Line 3: context usage, tokens, cost, elapsed time, lines changed
+- Line 4 *(if `gh` is installed and you have open PRs)*: PR numbers, CI status, review status
 
 ## Troubleshooting
 

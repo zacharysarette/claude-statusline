@@ -17,6 +17,18 @@ Session elapsed time is now displayed on line 3 via the `cost.total_duration_ms`
 ```
 No temp files needed — the API provides the duration directly.
 
+### Open PR Status (Line 4+) ✅
+Each open PR gets its own status line row with CI and review statuses:
+```
+🔀 PRs: #123 Fix auth login ✅ CI passed 👍 Approved
+🔀 #456 draft:Add dashboard ⏳ CI running 👀 Review needed
+```
+- One line per PR — first row has `🔀 PRs:` header, subsequent rows show `🔀`
+- Shows all open PRs (not just current branch), highlights current branch's PR in cyan
+- Background-refresh cache (`/tmp/claude-statusline-prs.cache`) with 5-minute TTL — never blocks rendering
+- Requires `gh` CLI (gracefully hidden if not installed)
+- Configurable via `CLAUDE_PR_CACHE_TTL`, `CLAUDE_PR_LIMIT`, `CLAUDE_PR_DISABLE`
+
 ## Planned Improvements
 
 ### Background Color Fix
@@ -75,14 +87,6 @@ Flash the reset bar or show a warning icon when approaching rate limits:
 ⏳ ██░░░░░░░░░░ 2h15m ⚠️
 ```
 
-### PR Review Status
-If on a branch with an open PR, show its review status:
-```
-🌿 feature/login 📋 2✔ 1💬
-```
-- Uses `gh pr view --json reviewDecision,reviews`
-- Could be slow — cache for 60s
-
 ### System Resource Monitor
 Add optional CPU/memory usage (useful for long builds):
 ```
@@ -105,7 +109,7 @@ Tiny weather indicator fetched periodically:
 3. A single `node` call parses JSON and outputs `key="value"` pairs
 4. `eval` brings those into bash variables
 5. Each section builds a string with ANSI color codes
-6. Three `echo -e` calls output line 1, line 2, and line 3
+6. Three `echo -e` calls output lines 1–3, plus one `echo` per open PR for line 4+
 7. Claude Code renders each `echo` as a separate status row
 
 ### JSON Fields Available
